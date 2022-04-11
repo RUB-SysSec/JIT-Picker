@@ -407,6 +407,14 @@ public struct Fuzzilli_Protobuf_Instruction {
     set {operation = .return(newValue)}
   }
 
+  public var differentialHash: Fuzzilli_Protobuf_DifferentialHash {
+    get {
+      if case .differentialHash(let v)? = operation {return v}
+      return Fuzzilli_Protobuf_DifferentialHash()
+    }
+    set {operation = .differentialHash(newValue)}
+  }
+
   public var yield: Fuzzilli_Protobuf_Yield {
     get {
       if case .yield(let v)? = operation {return v}
@@ -984,6 +992,7 @@ public struct Fuzzilli_Protobuf_Instruction {
     case beginAsyncGeneratorFunction(Fuzzilli_Protobuf_BeginAsyncGeneratorFunction)
     case endAsyncGeneratorFunction(Fuzzilli_Protobuf_EndAsyncGeneratorFunction)
     case `return`(Fuzzilli_Protobuf_Return)
+    case differentialHash(Fuzzilli_Protobuf_DifferentialHash)
     case yield(Fuzzilli_Protobuf_Yield)
     case yieldEach(Fuzzilli_Protobuf_YieldEach)
     case await(Fuzzilli_Protobuf_Await)
@@ -1235,6 +1244,10 @@ public struct Fuzzilli_Protobuf_Instruction {
       }()
       case (.return, .return): return {
         guard case .return(let l) = lhs, case .return(let r) = rhs else { preconditionFailure() }
+        return l == r
+      }()
+      case (.differentialHash, .differentialHash): return {
+        guard case .differentialHash(let l) = lhs, case .differentialHash(let r) = rhs else { preconditionFailure() }
         return l == r
       }()
       case (.yield, .yield): return {
@@ -1605,6 +1618,7 @@ extension Fuzzilli_Protobuf_Instruction: SwiftProtobuf.Message, SwiftProtobuf._M
     85: .same(proto: "beginAsyncGeneratorFunction"),
     86: .same(proto: "endAsyncGeneratorFunction"),
     29: .same(proto: "return"),
+    106: .same(proto: "differentialHash"),
     73: .same(proto: "yield"),
     74: .same(proto: "yieldEach"),
     75: .same(proto: "await"),
@@ -2949,6 +2963,19 @@ extension Fuzzilli_Protobuf_Instruction: SwiftProtobuf.Message, SwiftProtobuf._M
           self.operation = .switchBreak(v)
         }
       }()
+      case 106: try {
+        var v: Fuzzilli_Protobuf_DifferentialHash?
+        var hadOneofValue = false
+        if let current = self.operation {
+          hadOneofValue = true
+          if case .differentialHash(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.operation = .differentialHash(v)
+        }
+      }()
       case 112: try {
         var v: Fuzzilli_Protobuf_StorePropertyWithBinop?
         var hadOneofValue = false
@@ -3523,6 +3550,10 @@ extension Fuzzilli_Protobuf_Instruction: SwiftProtobuf.Message, SwiftProtobuf._M
     case .switchBreak?: try {
       guard case .switchBreak(let v)? = self.operation else { preconditionFailure() }
       try visitor.visitSingularMessageField(value: v, fieldNumber: 104)
+    }()
+    case .differentialHash?: try {
+      guard case .differentialHash(let v)? = self.operation else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 106)
     }()
     case .storePropertyWithBinop?: try {
       guard case .storePropertyWithBinop(let v)? = self.operation else { preconditionFailure() }

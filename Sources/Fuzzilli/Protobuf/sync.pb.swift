@@ -127,6 +127,12 @@ public struct Fuzzilli_Protobuf_Statistics {
   //// The timeout rate (i.e. number of timeouts divided by number of generated programs) over the last 1000 generated programs.
   public var timeoutRate: Double = 0
 
+  //// Number of differential samples found.
+  public var differentialSamples: UInt64 = 0
+
+  /// Number of differential tests performed.
+  public var totalDifferentialTests: UInt64 = 0
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
@@ -280,6 +286,8 @@ extension Fuzzilli_Protobuf_Statistics: SwiftProtobuf.Message, SwiftProtobuf._Me
     12: .same(proto: "coverage"),
     13: .same(proto: "correctnessRate"),
     14: .same(proto: "timeoutRate"),
+    15: .same(proto: "differentialSamples"),
+    16: .same(proto: "totalDifferentialTests"),
   ]
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
@@ -302,6 +310,8 @@ extension Fuzzilli_Protobuf_Statistics: SwiftProtobuf.Message, SwiftProtobuf._Me
       case 12: try { try decoder.decodeSingularDoubleField(value: &self.coverage) }()
       case 13: try { try decoder.decodeSingularDoubleField(value: &self.correctnessRate) }()
       case 14: try { try decoder.decodeSingularDoubleField(value: &self.timeoutRate) }()
+      case 15: try { try decoder.decodeSingularUInt64Field(value: &self.differentialSamples) }()
+      case 16: try { try decoder.decodeSingularUInt64Field(value: &self.totalDifferentialTests) }()
       default: break
       }
     }
@@ -350,6 +360,12 @@ extension Fuzzilli_Protobuf_Statistics: SwiftProtobuf.Message, SwiftProtobuf._Me
     if self.timeoutRate != 0 {
       try visitor.visitSingularDoubleField(value: self.timeoutRate, fieldNumber: 14)
     }
+    if self.differentialSamples != 0 {
+      try visitor.visitSingularUInt64Field(value: self.differentialSamples, fieldNumber: 15)
+    }
+    if self.totalDifferentialTests != 0 {
+      try visitor.visitSingularUInt64Field(value: self.totalDifferentialTests, fieldNumber: 16)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -368,6 +384,8 @@ extension Fuzzilli_Protobuf_Statistics: SwiftProtobuf.Message, SwiftProtobuf._Me
     if lhs.coverage != rhs.coverage {return false}
     if lhs.correctnessRate != rhs.correctnessRate {return false}
     if lhs.timeoutRate != rhs.timeoutRate {return false}
+    if lhs.differentialSamples != rhs.differentialSamples {return false}
+    if lhs.totalDifferentialTests != rhs.totalDifferentialTests {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

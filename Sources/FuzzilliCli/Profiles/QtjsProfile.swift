@@ -25,14 +25,18 @@ fileprivate let ForceQV4JITGenerator = CodeGenerator("ForceQV4JITGenerator", inp
 }
 
 let qtjsProfile = Profile(
-    getProcessArguments: { (randomizingArguments: Bool) -> [String] in
+    getProcessArguments: { (randomizingArguments: Bool, differentialTesting: Bool) -> [String] in
         return ["-reprl"]
     },
+
+    processArgumentsReference: ["-reprl"],
 
     processEnv: ["UBSAN_OPTIONS":"handle_segv=0"],
 
     codePrefix: """
+                function placeholder(){}
                 function main() {
+                const fhash = placeholder;
                 """,
 
     codeSuffix: """
@@ -46,6 +50,12 @@ let qtjsProfile = Profile(
     // Used to verify that crashes can be detected.
     crashTests: ["fuzzilli('FUZZILLI_CRASH', 0)"],
 
+    differentialTests: [],
+
+    differentialTestsInvariant: [],
+
+    differentialPoison: [],
+
     additionalCodeGenerators: [
         (ForceQV4JITGenerator,    20),
     ],
@@ -56,4 +66,5 @@ let qtjsProfile = Profile(
 
     additionalBuiltins: [
         "gc"                : .function([] => .undefined),
+        "placeholder"   : .function([] => .undefined),
     ])

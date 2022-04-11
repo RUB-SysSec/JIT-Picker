@@ -184,6 +184,10 @@ message EndAsyncGeneratorFunction {
 message Return {
 }
 
+message DifferentialHash {
+    bool allowInnerScope = 1;
+}
+
 message Yield {
 }
 

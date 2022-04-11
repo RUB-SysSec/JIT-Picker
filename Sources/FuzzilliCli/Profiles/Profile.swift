@@ -15,7 +15,8 @@
 import Fuzzilli
 
 struct Profile {
-    let getProcessArguments: (_: Bool) -> [String]
+    let getProcessArguments: (_: Bool, _: Bool) -> [String]
+    let processArgumentsReference: [String]
     let processEnv: [String : String]
     let codePrefix: String
     let codeSuffix: String
@@ -24,6 +25,10 @@ struct Profile {
     // JavaScript code snippets that cause a crash in the target engine.
     // Used to verify that crashes can be detected.
     let crashTests: [String]
+
+    let differentialTests: [String]
+    let differentialTestsInvariant: [String]
+    let differentialPoison: [String]
 
     let additionalCodeGenerators: [(CodeGenerator, Int)]
     let additionalProgramTemplates: WeightedList<ProgramTemplate>

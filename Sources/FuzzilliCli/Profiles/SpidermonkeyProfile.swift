@@ -26,7 +26,7 @@ fileprivate let ForceSpidermonkeyIonGenerator = CodeGenerator("ForceSpidermonkey
 }
 
 let spidermonkeyProfile = Profile(
-    getProcessArguments: { (randomizingArguments: Bool) -> [String] in
+    getProcessArguments: { (randomizingArguments: Bool, differentialTesting: Bool) -> [String] in
         var args = [
             "--baseline-warmup-threshold=10",
             "--ion-warmup-threshold=100",
@@ -34,6 +34,10 @@ let spidermonkeyProfile = Profile(
             "--ion-extra-checks",
             "--fuzzing-safe",
             "--reprl"]
+
+        if differentialTesting {
+            args.append("--differential-testing")
+        }
 
         guard randomizingArguments else { return args }
 
@@ -67,10 +71,20 @@ let spidermonkeyProfile = Profile(
         return args
     },
 
+    processArgumentsReference: [
+        "--no-threads",
+        "--baseline-warmup-threshold=10",
+        "--fuzzing-safe",
+        "--differential-testing",
+        "--no-ion",
+        "--reprl",
+    ],
+
     processEnv: ["UBSAN_OPTIONS": "handle_segv=0"],
 
     codePrefix: """
                 function main() {
+                const fhash = fuzzilli_hash;
                 """,
 
     codeSuffix: """
@@ -81,7 +95,19 @@ let spidermonkeyProfile = Profile(
 
     ecmaVersion: ECMAScriptVersion.es6,
 
-    crashTests: ["fuzzilli('FUZZILLI_CRASH', 0)", "fuzzilli('FUZZILLI_CRASH', 1)", "fuzzilli('FUZZILLI_CRASH', 2)"],
+    crashTests: ["fuzzilli('FUZZILLI_CRASH', 0)",
+                 "fuzzilli('FUZZILLI_CRASH', 1)",
+                 "fuzzilli('FUZZILLI_CRASH', 2)"],
+
+    differentialTests: ["for(let i=0; i<200; i++) {fuzzilli_hash(fuzzilli('FUZZILLI_RANDOM'))}",],
+
+    differentialTestsInvariant: ["for(let i=0; i < 200; i++) {fuzzilli_hash(Math.random())}",
+                                 "for(let i=0; i < 200; i++) {fuzzilli_hash(Date.now())}",],
+
+    differentialPoison : ["ReportOverRecursed called",
+                          "ReportOutOfMemory called",
+                          "ReportAllocationOverflow called",
+                          "[unhandlable oom]"],
 
     additionalCodeGenerators: [
         (ForceSpidermonkeyIonGenerator, 10),

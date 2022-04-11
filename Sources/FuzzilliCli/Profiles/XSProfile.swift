@@ -15,15 +15,18 @@
 import Fuzzilli
 
 let xsProfile = Profile(
-    getProcessArguments: { (randomizingArguments: Bool) -> [String] in
+    getProcessArguments: { (randomizingArguments: Bool, differentialTesting: Bool) -> [String] in
         return ["-f"]
     },
+
+    processArgumentsReference: ["-f"],
 
     processEnv: ["UBSAN_OPTIONS":"handle_segv=0"],
 
     codePrefix: """
                 function placeholder(){}
                 function main() {
+                const fhash = placeholder;
                 """,
 
     codeSuffix: """
@@ -35,6 +38,13 @@ let xsProfile = Profile(
     ecmaVersion: ECMAScriptVersion.es6,
 
     crashTests: ["fuzzilli('FUZZILLI_CRASH', 0)", "fuzzilli('FUZZILLI_CRASH', 1)", "fuzzilli('FUZZILLI_CRASH', 2)"],
+
+    differentialTests: ["fuzzilli_hash(fuzzilli('FUZZILLI_RANDOM'))",],
+
+    differentialTestsInvariant: ["fuzzilli_hash(Math.random())",
+                                 "fuzzilli_hash(Date.now())",],
+
+    differentialPoison: [],
 
     additionalCodeGenerators: [],
 

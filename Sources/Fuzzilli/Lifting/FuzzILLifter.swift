@@ -196,6 +196,9 @@ public class FuzzILLifter: Lifter {
         case is Return:
             w.emit("Return \(input(0))")
 
+        case is DifferentialHash:
+            w.emit("DifferentialHash \(input(0))")
+
         case is Yield:
             w.emit("\(instr.output) <- Yield \(input(0))")
 

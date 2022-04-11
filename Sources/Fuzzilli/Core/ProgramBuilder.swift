@@ -79,6 +79,9 @@ public class ProgramBuilder {
         return scopeAnalyzer.visibleVariables.count
     }
 
+    /// How many probes we already inserted into the program
+    private var probesWeaved = 0
+
     /// Whether there are any variables currently in scope.
     public var hasVisibleVariables: Bool {
         return numVisibleVariables > 0
@@ -106,11 +109,66 @@ public class ProgramBuilder {
         contextAnalyzer = ContextAnalyzer()
         interpreter.reset()
         currentCodegenBudget = 0
+        probesWeaved = 0
+    }
+
+    private func appendDifferentialProbes() {
+        var alreadyProbed = 0
+        var probableLocations: [Int] = []
+
+        var scopeAnalyzer = ScopeAnalyzer()
+        for instr in code {
+            scopeAnalyzer.analyze(instr)
+            if scopeAnalyzer.visibleVariables.count > 0 {
+                probableLocations.append(instr.index)
+            }
+            if let op = instr.op as? DifferentialHash, !op.allowInnerScope {
+                alreadyProbed += 1
+            }
+        }
+
+        let expectedProbed = Int(fuzzer.config.differentialRate * Double(probableLocations.count))
+        guard alreadyProbed * 2 < expectedProbed else { return }
+        let remainingProbed = expectedProbed - alreadyProbed
+        probableLocations.shuffle()
+        let toProbe = probableLocations.prefix(remainingProbed)
+
+        var newCode = Code()
+        var copyVars: [Variable] = []
+        for _ in 0..<remainingProbed {
+            let v = nextVariable()
+            copyVars.append(v)
+            newCode.append(Instruction(LoadInteger(value: 0), inouts: [v]))
+        }
+
+        scopeAnalyzer = ScopeAnalyzer()
+        var copied = 0
+        for instr in code {
+            scopeAnalyzer.analyze(instr)
+            newCode.append(instr)
+            if toProbe.contains(instr.index) {
+                let v = randVarInternal(using: scopeAnalyzer)!
+                newCode.append(Instruction(Reassign(), inouts: [copyVars[copied], v]))
+                copied += 1
+            }
+        }
+
+        for v in copyVars {
+            newCode.append(Instruction(DifferentialHash(allowInnerScope: false), inouts: [v]))
+        }
+
+        newCode.normalize()
+        code = newCode
     }
 
     /// Finalizes and returns the constructed program, then resets this builder so it can be reused for building another program.
     public func finalize() -> Program {
         Assert(openFunctions.isEmpty)
+
+        if fuzzer.config.differentialRate > 0.0 {
+            appendDifferentialProbes()
+        }
+
         let program = Program(code: code, parent: parent, comments: comments)
         // TODO set type status to something meaningful?
         reset()
@@ -327,9 +385,10 @@ public class ProgramBuilder {
     }
 
     /// Returns a random variable satisfying the given constraints or nil if none is found.
-    func randVarInternal(filter: ((Variable) -> Bool)? = nil, excludeInnermostScope: Bool = false) -> Variable? {
+    func randVarInternal(filter: ((Variable) -> Bool)? = nil, excludeInnermostScope: Bool = false, using a: ScopeAnalyzer? = nil) -> Variable? {
         var candidates = [Variable]()
-        let scopes = excludeInnermostScope ? scopeAnalyzer.scopes.dropLast() : scopeAnalyzer.scopes
+        let analyzer = a ?? self.scopeAnalyzer
+        let scopes = excludeInnermostScope ? analyzer.scopes.dropLast() : analyzer.scopes
 
         // Prefer inner scopes
         withProbability(0.75) {
@@ -340,7 +399,7 @@ public class ProgramBuilder {
         }
 
         if candidates.isEmpty {
-            let visibleVariables = excludeInnermostScope ? scopes.reduce([], +) : scopeAnalyzer.visibleVariables
+            let visibleVariables = excludeInnermostScope ? scopes.reduce([], +) : analyzer.visibleVariables
             if let f = filter {
                 candidates = visibleVariables.filter(f)
             } else {
@@ -1593,6 +1652,16 @@ public class ProgramBuilder {
 
         // Update type information
         let _ = interpreter.execute(instr)
+
+        if let op = instr.op as? DifferentialHash, !op.allowInnerScope {
+            probesWeaved += 1
+        }
+        guard Double(probesWeaved) < fuzzer.config.differentialWeaveRate * Double(code.count) else { return }
+        if probability(fuzzer.config.differentialWeaveRate) {
+            //guard scopeAnalyzer.visibleVariables.count > 0 else { return }
+            code.append(Instruction(DifferentialHash(allowInnerScope: true), inouts: [randVar()]))
+            probesWeaved += 1
+        }
     }
 
     /// Update value analysis. In particular the set of seen values and the variables that contain them for variable reuse.

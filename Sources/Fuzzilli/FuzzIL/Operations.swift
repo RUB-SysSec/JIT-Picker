@@ -510,6 +510,15 @@ class Return: Operation {
     }
 }
 
+class DifferentialHash: Operation {
+    let allowInnerScope: Bool
+    init(allowInnerScope: Bool) {
+        self.allowInnerScope = allowInnerScope
+        let requiredContext: Context = allowInnerScope ? [] : [.script]
+        super.init(numInputs: 1, numOutputs: 0, attributes: [], requiredContext: requiredContext)
+    }
+}
+
 // A yield expression in JavaScript
 class Yield: Operation {
     init() {

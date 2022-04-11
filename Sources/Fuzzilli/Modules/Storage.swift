@@ -19,6 +19,8 @@ public class Storage: Module {
     private let storageDir: String
     private let crashesDir: String
     private let duplicateCrashesDir: String
+    private let differentialsDir: String
+    private let duplicateDifferentialsDir: String
     private let corpusDir: String
     private let statisticsDir: String
     private let stateFile: String
@@ -35,6 +37,8 @@ public class Storage: Module {
         self.storageDir = storageDir
         self.crashesDir = storageDir + "/crashes"
         self.duplicateCrashesDir = storageDir + "/crashes/duplicates"
+        self.differentialsDir = storageDir + "/differentials"
+        self.duplicateDifferentialsDir = storageDir + "/differentials/duplicates"
         self.corpusDir = storageDir + "/corpus"
         self.failedDir = storageDir + "/failed"
         self.timeOutDir = storageDir + "/timeouts"
@@ -52,6 +56,8 @@ public class Storage: Module {
         do {
             try FileManager.default.createDirectory(atPath: crashesDir, withIntermediateDirectories: true)
             try FileManager.default.createDirectory(atPath: duplicateCrashesDir, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(atPath: differentialsDir, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(atPath: duplicateDifferentialsDir, withIntermediateDirectories: true)
             try FileManager.default.createDirectory(atPath: corpusDir, withIntermediateDirectories: true)
             try FileManager.default.createDirectory(atPath: statisticsDir, withIntermediateDirectories: true)
             if fuzzer.config.enableDiagnostics {
@@ -69,6 +75,15 @@ public class Storage: Module {
                 self.storeProgram(ev.program, as: filename, in: self.crashesDir)
             } else {
                 self.storeProgram(ev.program, as: filename, in: self.duplicateCrashesDir)
+            }
+        }
+
+        fuzzer.registerEventListener(for: fuzzer.events.DifferentialFound) { ev in
+            let filename = "program_\(self.formatDate())_\(ev.program.id)_\(ev.behaviour.rawValue)"
+            if ev.isUnique {
+                self.storeProgram(ev.program, as: filename, in: self.differentialsDir)
+            } else {
+                self.storeProgram(ev.program, as: filename, in: self.duplicateDifferentialsDir)
             }
         }
 

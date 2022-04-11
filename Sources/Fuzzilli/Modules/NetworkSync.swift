@@ -62,6 +62,9 @@ enum MessageType: UInt32 {
 
     // Log messages are forwarded from workers to masters.
     case log            = 7
+
+    /// A differential execution program that is sent from a worker to a master.
+    case differential   = 8
 }
 
 fileprivate let messageHeaderSize = 8
@@ -495,6 +498,15 @@ public class NetworkMaster: Module, MessageHandler {
             }
             worker.conn.sendMessage(cachedState, ofType: .sync)
 
+        case .differential:
+            do {
+                let proto = try Fuzzilli_Protobuf_Program(serializedData: payload)
+                let program = try Program(from: proto)
+                fuzzer.importDifferential(program, origin: .worker(id: worker.id!))
+            } catch {
+                logger.warning("Received malformed program from worker: \(error)")
+            }
+
         case .crash:
             do {
                 let proto = try Fuzzilli_Protobuf_Program(serializedData: payload)
@@ -611,6 +623,10 @@ public class NetworkWorker: Module, MessageHandler {
 
         fuzzer.registerEventListener(for: fuzzer.events.CrashFound) { ev in
             self.sendProgram(ev.program, type: .crash)
+        }
+
+        fuzzer.registerEventListener(for: fuzzer.events.DifferentialFound) { ev in
+            self.sendProgram(ev.program, type: .differential)
         }
 
         fuzzer.registerEventListener(for: fuzzer.events.Shutdown) { _ in
@@ -743,7 +759,7 @@ public class NetworkWorker: Module, MessageHandler {
     }
 
     private func sendProgram(_ program: Program, type: MessageType) {
-        Assert(type == .program || type == .crash)
+        Assert(type == .program || type == .crash || type == .differential)
         let proto = program.asProtobuf()
         guard let data = try? proto.serializedData() else {
             return logger.error("Failed to serialize program")

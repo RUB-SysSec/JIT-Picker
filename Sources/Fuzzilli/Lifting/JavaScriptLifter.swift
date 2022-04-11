@@ -372,6 +372,12 @@ public class JavaScriptLifter: Lifter {
             case is Return:
                 w.emit("return \(input(0));")
 
+            case is DifferentialHash:
+                // no need to hash inlined constants
+                if !inlinedVars.contains(instr.input(0)) {
+                    w.emit("fhash(\(input(0)));")
+                }
+
             case is Yield:
                 output = YieldExpression.new() <> "yield " <> input(0)
 

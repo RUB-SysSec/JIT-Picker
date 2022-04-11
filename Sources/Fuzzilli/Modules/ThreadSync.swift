@@ -100,6 +100,13 @@ public class ThreadWorker: Module {
             }
         }
 
+        fuzzer.registerEventListener(for: fuzzer.events.DifferentialFound) { ev in
+            let program = ev.program.copy()
+            master.async {
+                master.importDifferential(program, origin: .worker(id: fuzzer.id))
+            }
+        }
+
         fuzzer.registerEventListener(for: fuzzer.events.InterestingProgramFound) { ev in
             // Don't send programs back to where they came from
             if case .master = ev.origin { return }

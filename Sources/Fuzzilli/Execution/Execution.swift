@@ -20,6 +20,7 @@ public enum ExecutionOutcome: CustomStringConvertible, Equatable, Hashable {
     case failed(Int)
     case succeeded
     case timedOut
+    case differential
 
     public var description: String {
         switch self {
@@ -31,11 +32,16 @@ public enum ExecutionOutcome: CustomStringConvertible, Equatable, Hashable {
             return "Succeeded"
         case .timedOut:
             return "TimedOut"
+        case .differential:
+            return "Differential"
         }
     }
 
     public func isCrash() -> Bool {
         if case .crashed = self {
+            return true
+        }
+        else if case .differential = self {
             return true
         } else {
             return false
@@ -46,7 +52,7 @@ public enum ExecutionOutcome: CustomStringConvertible, Equatable, Hashable {
 /// The result of executing a program.
 public protocol Execution {
     /// The execution outcome
-    var outcome: ExecutionOutcome { get }
+    var outcome: ExecutionOutcome { get set }
 
     /// The program's stdout
     var stdout: String { get }
@@ -58,5 +64,12 @@ public protocol Execution {
     var fuzzout: String { get }
 
     /// Execution time in microseconds
-    var execTime: TimeInterval { get }
+    var execTime: TimeInterval { get set }
+
+    /// A serialized version of (some of) the programs variables after
+    /// execution is finished. Might be empty if the result was not requested
+    /// or could not be computed.
+    var differentialResult: Int { get }
+
+    var differentialResultInputs: Int { get }
 }

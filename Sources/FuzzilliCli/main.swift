@@ -97,6 +97,8 @@ Options:
                                                 These describe in detail how the program was generated through mutations,
                                                 code generation, and minimization
     --argumentRandomization      : Enable JS engine argument randomization
+    --differentialRate=p        : Rate at which variables are probed for differential testing at the end of generated programs (default: 0.0)
+    --differentialWeaveRate=p   : Rate at which variables are probed for differential testing throughout the generated programs (default: 0.0)
 """)
     exit(0)
 }
@@ -148,6 +150,8 @@ let diagnostics = args.has("--diagnostics")
 let inspect = args["--inspect"]
 let swarmTesting = args.has("--swarmTesting")
 let randomizingArguments = args.has("--argumentRandomization")
+let differentialRate = args.double(for: "--differentialRate") ?? 0.0
+let differentialWeaveRate = args.double(for: "--differentialWeaveRate") ?? 0.0
 
 guard numJobs >= 1 else {
     configError("Must have at least 1 job")
@@ -174,6 +178,14 @@ if corpusName != "markov" && args.double(for: "--markovDropoutRate") != nil {
 
 if markovDropoutRate < 0 || markovDropoutRate > 1 {
     print("The markovDropoutRate must be between 0 and 1")
+}
+
+if differentialRate < 0 || differentialRate > 1 {
+    configError("The differentialRate must be between 0 and 1")
+}
+
+if differentialWeaveRate < 0 || differentialWeaveRate > 1 {
+    configError("The differentialWeaveRate must be between 0 and 1")
 }
 
 if corpusName == "markov" && (args.int(for: "--maxCorpusSize") != nil || args.int(for: "--minCorpusSize") != nil
@@ -317,8 +329,19 @@ for (generator, var weight) in (additionalCodeGenerators + regularCodeGenerators
 //
 
 func makeFuzzer(for profile: Profile, with configuration: Configuration) -> Fuzzer {
+    let differentialTesting = isNetworkMaster || configuration.differentialRate > 0.0 || configuration.differentialWeaveRate > 0.0
     // A script runner to execute JavaScript code in an instrumented JS engine.
-    let runner = REPRL(executable: jsShellPath, processArguments: profile.getProcessArguments(randomizingArguments), processEnvironment: profile.processEnv)
+    let runner = REPRL(executable: jsShellPath, processArguments: profile.getProcessArguments(randomizingArguments, differentialTesting), processEnvironment: profile.processEnv)
+
+    var referenceRunner: ScriptRunner? = nil
+    if differentialTesting {
+        referenceRunner = REPRL(executable: jsShellPath,
+                                processArguments: profile.processArgumentsReference,
+                                processEnvironment: profile.processEnv)
+        // we never actually evaluate the coverage no need to attach the
+        // evaluators to the fuzzer
+        let _ = ProgramCoverageEvaluator(runner: referenceRunner!)
+    }
 
     let engine: FuzzEngine
     switch engineName {
@@ -389,6 +412,7 @@ func makeFuzzer(for profile: Profile, with configuration: Configuration) -> Fuzz
     // Construct the fuzzer instance.
     return Fuzzer(configuration: config,
                   scriptRunner: runner,
+                  referenceRunner: referenceRunner,
                   engine: engine,
                   mutators: mutators,
                   codeGenerators: codeGenerators,
@@ -404,6 +428,11 @@ func makeFuzzer(for profile: Profile, with configuration: Configuration) -> Fuzz
 let config = Configuration(timeout: UInt32(timeout),
                            logLevel: logLevel,
                            crashTests: profile.crashTests,
+                           differentialTests: profile.differentialTests,
+                           differentialTestsInvariant: profile.differentialTestsInvariant,
+                           differentialRate: differentialRate,
+                           differentialWeaveRate: differentialWeaveRate,
+                           differentialPoison: profile.differentialPoison,
                            isFuzzing: !dontFuzz,
                            minimizationLimit: minimizationLimit,
                            enableDiagnostics: diagnostics,

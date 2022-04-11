@@ -23,6 +23,28 @@ public struct Configuration {
     /// Used to verify that crashes can be detected.
     public let crashTests: [String]
 
+    /// Code snippets that cause an observable difference of output
+    /// in the target engine. Used to verify that crashes can be detected.
+    public let differentialTests: [String]
+
+    /// Code snippets that must not cause an observable difference of output
+    /// in the target engine. Used to verify that common sources of
+    /// entrpy (Math.random, ...) are deterministic.
+    public let differentialTestsInvariant: [String]
+
+    /// During differential fuzzing, this is the rate of variables probed
+    /// at the end of the generated programs.
+    public let differentialRate: Double
+
+    /// During differential fuzzing, this is the rate of variables probed
+    /// throughout the generated programs.
+    public let differentialWeaveRate: Double
+
+    // List of Strings searched for in stderr of the engine.
+    // If found, differential execution results are ignored. Useful to supress
+    // known benign differentials.
+    public let differentialPoison: [String]
+
     /// Whether this instance fuzzes (i.e. generates new samples, executes, then evaulates them).
     /// This flag is true by default, so all instances, regardless of whether they run standalone, as
     /// master or as worker, perform fuzzing. However, it can make sense to configure master
@@ -53,6 +75,11 @@ public struct Configuration {
                 skipStartupTests: Bool = false,
                 logLevel: LogLevel = .info,
                 crashTests: [String] = [],
+                differentialTests: [String] = [],
+                differentialTestsInvariant: [String] = [],
+                differentialRate: Double = 0.0,
+                differentialWeaveRate: Double = 0.0,
+                differentialPoison: [String] = [],
                 isFuzzing: Bool = true,
                 minimizationLimit: Double = 0.0,
                 dropoutRate: Double = 0,
@@ -63,6 +90,11 @@ public struct Configuration {
         self.timeout = timeout
         self.logLevel = logLevel
         self.crashTests = crashTests
+        self.differentialTests = differentialTests
+        self.differentialTestsInvariant = differentialTestsInvariant
+        self.differentialRate = differentialRate
+        self.differentialWeaveRate = differentialWeaveRate
+        self.differentialPoison = differentialPoison
         self.isFuzzing = isFuzzing
         self.dropoutRate = dropoutRate
         self.minimizationLimit = minimizationLimit

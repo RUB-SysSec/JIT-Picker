@@ -107,8 +107,11 @@ public class REPRL: ComponentBase, ScriptRunner {
         var execTime: UInt64 = 0        // In microseconds
         let timeout = UInt64(timeout) * 1000        // In microseconds
         var status: Int32 = 0
+        var differentialResult32: UInt32 = 0
+        var differentialResultInputs32: UInt32 = 0
         script.withCString {
-            status = reprl_execute(reprlContext, $0, UInt64(script.count), UInt64(timeout), &execTime, freshInstance)
+            status = reprl_execute(reprlContext, $0, UInt64(script.count), UInt64(timeout), &execTime, freshInstance,
+                                   &differentialResult32, &differentialResultInputs32)
             // If we fail, we retry after a short timeout and with a fresh instance. If we still fail, we give up trying
             // to execute this program. If we repeatedly fail to execute any program, we abort.
             if status < 0 {
@@ -117,7 +120,8 @@ public class REPRL: ComponentBase, ScriptRunner {
                     fuzzer.dispatchEvent(fuzzer.events.DiagnosticsEvent, data: (name: "REPRLFail", content: scriptBuffer))
                 }
                 Thread.sleep(forTimeInterval: 1)
-                status = reprl_execute(reprlContext, $0, UInt64(script.count), UInt64(timeout), &execTime, 1)
+                status = reprl_execute(reprlContext, $0, UInt64(script.count), UInt64(timeout), &execTime, 1,
+                                       &differentialResult32, &differentialResultInputs32)
             }
         }
 
@@ -149,6 +153,8 @@ public class REPRL: ComponentBase, ScriptRunner {
         }
         execution.execTime = Double(execTime) / 1_000_000
 
+        execution.differentialResult = Int(differentialResult32)
+        execution.differentialResultInputs = Int(differentialResultInputs32)
         return execution
     }
 }
@@ -157,6 +163,9 @@ class REPRLExecution: Execution {
     private var cachedStdout: String? = nil
     private var cachedStderr: String? = nil
     private var cachedFuzzout: String? = nil
+
+    var differentialResult: Int
+    var differentialResultInputs: Int
 
     private unowned let reprl: REPRL
     private let execId: Int
@@ -167,6 +176,8 @@ class REPRLExecution: Execution {
     init(from reprl: REPRL) {
         self.reprl = reprl
         self.execId = reprl.lastExecId
+        self.differentialResult = 0
+        self.differentialResultInputs = 0
     }
 
     // The output streams (stdout, stderr, fuzzout) can only be accessed before

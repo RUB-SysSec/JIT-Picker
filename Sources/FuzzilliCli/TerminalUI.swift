@@ -55,6 +55,13 @@ class TerminalUI {
             }
         }
 
+        fuzzer.registerEventListener(for: fuzzer.events.DifferentialFound) { diff in
+            if diff.isUnique {
+                print("########## Unique Differential Found ##########")
+                print(fuzzer.lifter.lift(diff.program, withOptions: .includeComments))
+            }
+        }
+
         fuzzer.registerEventListener(for: fuzzer.events.CrashFound) { crash in
             if crash.isUnique {
                 print("########## Unique Crash Found ##########")
@@ -118,6 +125,7 @@ class TerminalUI {
         Correctness Rate:             \(String(format: "%.2f%%", stats.correctnessRate * 100)) (\(String(format: "%.2f%%", stats.globalCorrectnessRate * 100)))
         Timeout Rate:                 \(String(format: "%.2f%%", stats.timeoutRate * 100)) (\(String(format: "%.2f%%", stats.globalTimeoutRate * 100)))
         Crashes Found:                \(stats.crashingSamples)
+        Differentials Found:          \(stats.differentialSamples)
         Timeouts Hit:                 \(stats.timedOutSamples)
         Coverage:                     \(String(format: "%.2f%%", stats.coverage * 100))
         Avg. program size:            \(String(format: "%.2f", stats.avgProgramSize))
@@ -126,6 +134,7 @@ class TerminalUI {
         Execs / Second:               \(String(format: "%.2f", stats.execsPerSecond))
         Fuzzer Overhead:              \(String(format: "%.2f", stats.fuzzerOverhead * 100))%
         Total Execs:                  \(stats.totalExecs)
+        Differential Tests:           \(stats.totalDifferentialTests)
         """)
     }
 

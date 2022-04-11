@@ -69,6 +69,7 @@ message Instruction {
         BeginAsyncGeneratorFunction beginAsyncGeneratorFunction = 85;
         EndAsyncGeneratorFunction endAsyncGeneratorFunction = 86;
         Return return = 29;
+        DifferentialHash differentialHash = 106;
         Yield yield = 73;
         YieldEach yieldEach = 74;
         Await await = 75;

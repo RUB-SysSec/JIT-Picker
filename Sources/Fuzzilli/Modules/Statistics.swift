@@ -69,6 +69,7 @@ public class Statistics: Module {
             data.validSamples += workerData.validSamples
             data.timedOutSamples += workerData.timedOutSamples
             data.totalExecs += workerData.totalExecs
+            data.totalDifferentialTests += workerData.totalDifferentialTests
 
             if !self.inactiveWorkers.contains(id) {
                 // Add fields that only have meaning for active workers
@@ -94,6 +95,9 @@ public class Statistics: Module {
     public func initialize(with fuzzer: Fuzzer) {
         fuzzer.registerEventListener(for: fuzzer.events.CrashFound) { _ in
             self.ownData.crashingSamples += 1
+        }
+        fuzzer.registerEventListener(for: fuzzer.events.DifferentialFound) { _ in
+            self.ownData.differentialSamples += 1
         }
         fuzzer.registerEventListener(for: fuzzer.events.TimeOutFound) { _ in
             self.ownData.timedOutSamples += 1
@@ -121,6 +125,9 @@ public class Statistics: Module {
             self.overheadAvg.add(overhead)
 
 
+        }
+        fuzzer.registerEventListener(for: fuzzer.events.PostDifferentialExecute) { exec in
+            self.ownData.totalDifferentialTests += 1
         }
         fuzzer.registerEventListener(for: fuzzer.events.InterestingProgramFound) { ev in
             self.ownData.interestingSamples += 1

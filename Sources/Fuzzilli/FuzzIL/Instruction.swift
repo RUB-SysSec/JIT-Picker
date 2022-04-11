@@ -228,6 +228,10 @@ public struct Instruction {
         self.inouts_ = inouts_
     }
 
+    public var isDifferentialHash: Bool {
+        return op is DifferentialHash
+    }
+
     public init(_ op: Operation, output: Variable, index: Int? = nil) {
         Assert(op.numInputs == 0 && op.numOutputs == 1 && op.numInnerOutputs == 0)
         self.init(op, inouts: [output], index: index)
@@ -395,6 +399,8 @@ extension Instruction: ProtobufConvertible {
                 $0.endAsyncGeneratorFunction = Fuzzilli_Protobuf_EndAsyncGeneratorFunction()
             case is Return:
                 $0.return = Fuzzilli_Protobuf_Return()
+            case let op as DifferentialHash:
+                $0.differentialHash = Fuzzilli_Protobuf_DifferentialHash.with { $0.allowInnerScope = op.allowInnerScope }
             case is Yield:
                 $0.yield = Fuzzilli_Protobuf_Yield()
             case is YieldEach:
@@ -683,6 +689,8 @@ extension Instruction: ProtobufConvertible {
             op = EndAsyncGeneratorFunction()
         case .return(_):
             op = Return()
+        case .differentialHash(let p):
+            op = DifferentialHash(allowInnerScope: p.allowInnerScope)
         case .yield(_):
             op = Yield()
         case .yieldEach(_):

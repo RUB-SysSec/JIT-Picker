@@ -17,11 +17,13 @@ import Foundation
 // Mock implementations of fuzzer components. For testing and benchmarking
 
 struct MockExecution: Execution {
-    let outcome: ExecutionOutcome
+    var outcome: ExecutionOutcome
     let stdout: String
     let stderr: String
     let fuzzout: String
-    let execTime: TimeInterval
+    var execTime: TimeInterval
+    let differentialResult: Int
+    let differentialResultInputs: Int
 }
 
 class MockScriptRunner: ScriptRunner {
@@ -32,7 +34,9 @@ class MockScriptRunner: ScriptRunner {
                              stdout: "",
                              stderr: "",
                              fuzzout: "",
-                             execTime: TimeInterval(0.1))
+                             execTime: TimeInterval(0.1),
+                             differentialResult: 0,
+                             differentialResultInputs: 0)
     }
 
     func setEnvironmentVariable(_ key: String, to value: String) {}
@@ -161,6 +165,7 @@ public func makeMockFuzzer(engine maybeEngine: FuzzEngine? = nil, runner maybeRu
 
     // A script runner to execute JavaScript code in an instrumented JS engine.
     let runner = maybeRunner ?? MockScriptRunner()
+    let referenceRunner = maybeRunner ?? MockScriptRunner()
 
     // the mutators to use for this fuzzing engine.
     let mutators = WeightedList<Mutator>([
@@ -197,6 +202,7 @@ public func makeMockFuzzer(engine maybeEngine: FuzzEngine? = nil, runner maybeRu
     // Construct the fuzzer instance.
     let fuzzer = Fuzzer(configuration: configuration,
                         scriptRunner: runner,
+                        referenceRunner: referenceRunner,
                         engine: engine,
                         mutators: mutators,
                         codeGenerators: codeGenerators,

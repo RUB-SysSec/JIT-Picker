@@ -45,8 +45,11 @@ if reprl_initialize_context(ctx, argv, envp, /* capture_stdout: */ 1, /* capture
 func execute(_ code: String) -> (status: Int32, exec_time: UInt64) {
     var exec_time: UInt64 = 0
     var status: Int32 = 0
+    var differentialResult32: UInt32 = 0
+    var differentialResultInputs32: UInt32 = 0
     code.withCString {
-        status = reprl_execute(ctx, $0, UInt64(code.count), 1_000_000, &exec_time, 0)
+        status = reprl_execute(ctx, $0, UInt64(code.count), 1_000_000, &exec_time, 0,
+                               &differentialResult32, &differentialResultInputs32)
     }
     return (status, exec_time)
 }

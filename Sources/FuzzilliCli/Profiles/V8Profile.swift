@@ -231,7 +231,7 @@ fileprivate let VerifyTypeTemplate = ProgramTemplate("VerifyTypeTemplate") { b i
 }
 
 let v8Profile = Profile(
-    getProcessArguments: { (randomizingArguments: Bool) -> [String] in
+    getProcessArguments: { (randomizingArguments: Bool, differentialTesting: Bool) -> [String] in
         var args = [
             "--expose-gc",
             "--future",
@@ -241,6 +241,11 @@ let v8Profile = Profile(
             "--allow-natives-syntax",
             "--interrupt-budget=1000",
             "--fuzzing"]
+
+        if differentialTesting {
+            args.append("--predictable")
+            args.append("--correctness-fuzzer-suppressions")
+        }
 
         guard randomizingArguments else { return args }
 
@@ -271,10 +276,24 @@ let v8Profile = Profile(
         return args
     },
 
+    processArgumentsReference: [
+            "--expose-gc",
+            "--future",
+            "--harmony",
+            "--assert-types",
+            "--harmony-rab-gsab",
+            "--allow-natives-syntax",
+            "--interrupt-budget=1024",
+            "--jitless",
+            "--predictable",
+            "--correctness-fuzzer-suppressions",
+            "--fuzzing"],
+
     processEnv: [:],
 
     codePrefix: """
                 function main() {
+                const fhash = fuzzilli_hash;
                 """,
 
     codeSuffix: """
@@ -286,7 +305,16 @@ let v8Profile = Profile(
 
     ecmaVersion: ECMAScriptVersion.es6,
 
-    crashTests: ["fuzzilli('FUZZILLI_CRASH', 0)", "fuzzilli('FUZZILLI_CRASH', 1)", "fuzzilli('FUZZILLI_CRASH', 2)"],
+    crashTests: ["fuzzilli('FUZZILLI_CRASH', 0)",
+                 "fuzzilli('FUZZILLI_CRASH', 1)",
+                 "fuzzilli('FUZZILLI_CRASH', 2)"],
+
+    differentialTests: ["fuzzilli_hash(fuzzilli('FUZZILLI_RANDOM'))",],
+
+    differentialTestsInvariant: ["fuzzilli_hash(Math.random())",
+                                 "fuzzilli_hash(Date.now())",],
+
+    differentialPoison: ["Aborting on "],
 
     additionalCodeGenerators: [
         (ForceV8TurbofanGenerator,      10),

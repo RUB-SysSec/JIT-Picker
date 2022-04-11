@@ -23,11 +23,15 @@ extension FuzzEngine {
     public func execute(_ program: Program, stats: inout ProgramProducerStats) -> ExecutionOutcome {
         fuzzer.dispatchEvent(fuzzer.events.ProgramGenerated, data: program)
 
-        let execution = fuzzer.execute(program)
+        let differentialResult = program.code.contains { $0.isDifferentialHash }
+        let execution = fuzzer.execute(program, differentialResult: differentialResult)
 
         switch execution.outcome {
             case .crashed(let termsig):
                 fuzzer.processCrash(program, withSignal: termsig, withStderr: execution.stderr, withStdout: execution.stdout, origin: .local)
+
+            case .differential:
+                fuzzer.processDifferential(program, withStderr: execution.stderr, withStdout: execution.stdout, origin: .local)
 
             case .succeeded:
                 fuzzer.dispatchEvent(fuzzer.events.ValidProgramFound, data: program)
