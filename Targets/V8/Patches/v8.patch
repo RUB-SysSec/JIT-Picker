@@ -1,0 +1,288 @@
+From 90ee584b2685ce7e232a563d99243786f5fda9f1 Mon Sep 17 00:00:00 2001
+From: Lukas Bernhard <15350042+bernhl@users.noreply.github.com>
+Date: Mon, 2 Aug 2021 14:07:02 +0200
+Subject: [PATCH] Add fuzzilli differential fuzzing changes
+
+---
+ BUILD.bazel              |  1 +
+ BUILD.gn                 |  1 +
+ src/builtins/fuzzilli.tq | 54 ++++++++++++++++++++++++++++++++++++++++
+ src/compiler/typer.cc    |  5 ++++
+ src/d8/d8.cc             | 41 +++++++++++++++++++++++++++++-
+ src/d8/d8.h              |  1 +
+ src/heap/factory.cc      |  1 +
+ src/init/bootstrapper.cc |  4 +++
+ src/objects/contexts.h   |  3 ++-
+ src/objects/contexts.tq  |  1 +
+ 10 files changed, 110 insertions(+), 2 deletions(-)
+ create mode 100644 src/builtins/fuzzilli.tq
+
+diff --git a/BUILD.bazel b/BUILD.bazel
+index d0b6a9beb7a..8bf45d33b98 100644
+--- a/BUILD.bazel
++++ b/BUILD.bazel
+@@ -809,6 +809,7 @@ filegroup(
+         "src/builtins/frames.tq",
+         "src/builtins/frame-arguments.tq",
+         "src/builtins/function.tq",
++        "src/builtins/fuzzilli.tq",
+         "src/builtins/growable-fixed-array.tq",
+         "src/builtins/ic-callable.tq",
+         "src/builtins/ic.tq",
+diff --git a/BUILD.gn b/BUILD.gn
+index 783a7af6917..6c92ec3be13 100644
+--- a/BUILD.gn
++++ b/BUILD.gn
+@@ -1696,6 +1696,7 @@ torque_files = [
+   "src/builtins/frames.tq",
+   "src/builtins/frame-arguments.tq",
+   "src/builtins/function.tq",
++  "src/builtins/fuzzilli.tq",
+   "src/builtins/growable-fixed-array.tq",
+   "src/builtins/ic-callable.tq",
+   "src/builtins/ic.tq",
+diff --git a/src/builtins/fuzzilli.tq b/src/builtins/fuzzilli.tq
+new file mode 100644
+index 00000000000..a0423e37fe3
+--- /dev/null
++++ b/src/builtins/fuzzilli.tq
+@@ -0,0 +1,54 @@
++
++transitioning javascript builtin FuzzilliHash(
++    js-implicit context: NativeContext, receiver: JSAny)(obj: JSAny): Undefined {
++
++  let curVal: Smi = *NativeContextSlot(ContextSlot::FUZZILLI_HASH_INDEX);
++  typeswitch (obj) {
++
++    case (Null): {
++      curVal += 1;
++    }
++    case (True): {
++      curVal += 2;
++    }
++    case (False): {
++      curVal += 4;
++    }
++    case (Undefined): {
++      curVal += 8;
++    }
++    case (String): {
++      curVal += 16;
++    }
++    case (s: Smi): {
++      curVal += 32;
++      let doubleValue: float64 = SmiToFloat64(s);
++      if (Float64IsNaN(doubleValue)) {
++        doubleValue = 1.0;
++      }
++      const lWord: uint32 = data_view::Float64ExtractLowWord32(doubleValue);
++      const hWord: uint32 = data_view::Float64ExtractHighWord32(doubleValue);
++      curVal += SmiFromUint32(lWord);
++      curVal += SmiFromUint32(hWord);
++    }
++    case (n: HeapNumber): {
++      curVal += 32;
++      let doubleValue: float64 = Convert<float64>(n);
++      if (Float64IsNaN(doubleValue)) {
++        doubleValue = 1.0;
++      }
++      const lWord: uint32 = data_view::Float64ExtractLowWord32(doubleValue);
++      const hWord: uint32 = data_view::Float64ExtractHighWord32(doubleValue);
++      curVal += SmiFromUint32(lWord);
++      curVal += SmiFromUint32(hWord);
++    }
++    case (Object): {
++      curVal += 64;
++    }
++  }
++
++  curVal = (curVal << 30) | ((curVal >> 1) & 0x3fffffff);
++  *NativeContextSlot(ContextSlot::FUZZILLI_HASH_INDEX) = curVal;
++
++  return Undefined;
++}
+diff --git a/src/compiler/typer.cc b/src/compiler/typer.cc
+index 3ff6a41cb0b..d6f03ca49c1 100644
+--- a/src/compiler/typer.cc
++++ b/src/compiler/typer.cc
+@@ -1825,6 +1825,11 @@ Type Typer::Visitor::JSCallTyper(Type fun, Typer* t) {
+     case Builtin::kWeakSetPrototypeDelete:
+     case Builtin::kWeakSetPrototypeHas:
+       return Type::Boolean();
++
++    // Fuzzilli functions.
++    case Builtin::kFuzzilliHash:
++      return Type::Undefined();
++
+     default:
+       return Type::NonInternal();
+   }
+diff --git a/src/d8/d8.cc b/src/d8/d8.cc
+index 37f7de88807..23455a1a6ec 100644
+--- a/src/d8/d8.cc
++++ b/src/d8/d8.cc
+@@ -124,6 +124,7 @@ const int kMB = 1024 * 1024;
+ #define REPRL_DRFD 102  // Data read file decriptor
+ #define REPRL_DWFD 103  // Data write file decriptor
+ bool fuzzilli_reprl = true;
++uint32_t execHash = 0;
+ #else
+ bool fuzzilli_reprl = false;
+ #endif  // V8_FUZZILLI
+@@ -2995,7 +2996,27 @@ void Shell::Fuzzilli(const v8::FunctionCallbackInfo<v8::Value>& args) {
+     }
+     fprintf(fzliout, "%s\n", *string);
+     fflush(fzliout);
++  } else if (strcmp(*operation, "FUZZILLI_RANDOM") == 0) {
++    std::unique_ptr<base::RandomNumberGenerator> rng;
++    rng = std::make_unique<base::RandomNumberGenerator>();
++    double p = rng->NextDouble();
++    args.GetReturnValue().Set(v8::Number::New(args.GetIsolate(), p));
++  }
++}
++
++void Shell::FuzzilliHash(const v8::FunctionCallbackInfo<v8::Value>& args) {
++  String::Utf8Value string(args.GetIsolate(), args[0]);
++  if (*string == nullptr) {
++    return;
++  }
++  const char* cstr = *string;
++  uint32_t curHash = 0;
++  for (int remaining = string.length() - 1; remaining >= 0; remaining--) {
++    uint32_t curVal = cstr[remaining] + 1;
++    curHash *= curVal;
++    curHash += curVal;
+   }
++  execHash += curHash;
+ }
+ 
+ #endif  // V8_FUZZILLI
+@@ -4102,6 +4123,9 @@ void Shell::RunShell(Isolate* isolate) {
+     if (input.IsEmpty()) break;
+     ExecuteString(isolate, input, name, kPrintResult, kReportExceptions,
+                   kProcessMessageQueue);
++#ifdef V8_FUZZILLI
++    execHash = reinterpret_cast<i::Isolate*>(isolate)->native_context()->fuzzilli_hash().value();
++#endif
+   }
+   printf("\n");
+ }
+@@ -5094,6 +5118,7 @@ int Shell::RunMain(Isolate* isolate, bool last_run) {
+     }
+     HandleScope scope(isolate);
+     Local<Context> context = CreateEvaluationContext(isolate);
++
+     CreateSnapshotTemplate(isolate);
+     bool use_existing_context = last_run && use_interactive_shell();
+     if (use_existing_context) {
+@@ -5105,6 +5130,9 @@ int Shell::RunMain(Isolate* isolate, bool last_run) {
+       InspectorClient inspector_client(context, options.enable_inspector);
+       PerIsolateData::RealmScope realm_scope(PerIsolateData::Get(isolate));
+       if (!options.isolate_sources[0].Execute(isolate)) success = false;
++#ifdef V8_FUZZILLI
++      execHash = reinterpret_cast<i::Isolate*>(isolate)->native_context()->fuzzilli_hash().value();
++#endif
+       if (!CompleteMessageLoop(isolate)) success = false;
+     }
+     WriteLcovData(isolate, options.lcov_file);
+@@ -5121,6 +5149,7 @@ int Shell::RunMain(Isolate* isolate, bool last_run) {
+                                                            i_context);
+     }
+   }
++
+   CollectGarbage(isolate);
+ 
+   // Park the main thread here to prevent deadlocks in shared GCs when waiting
+@@ -5940,13 +5969,23 @@ int Shell::Main(int argc, char* argv[]) {
+         // to be flushed after every execution
+         fflush(stdout);
+         fflush(stderr);
+-        CHECK_EQ(write(REPRL_CWFD, &status, 4), 4);
++        struct {
++          int status;
++          uint32_t execHash;
++          uint32_t execHashInputs;
++        } s;
++        s.status = status;
++        s.execHash = execHash;
++        s.execHashInputs = 0;  // execHashInputs not tracked for now
++        execHash = 0;
++        CHECK_EQ(write(REPRL_CWFD, &s, 12), 12);
+         sanitizer_cov_reset_edgeguards();
+         if (options.fuzzilli_enable_builtins_coverage) {
+           i::BasicBlockProfiler::Get()->ResetCounts(
+               reinterpret_cast<i::Isolate*>(isolate));
+         }
+       }
++      fprintf(stderr, "execHash is 0x%x\n", execHash);
+ #endif  // V8_FUZZILLI
+     } while (fuzzilli_reprl);
+   }
+diff --git a/src/d8/d8.h b/src/d8/d8.h
+index 3cfa31322db..0f4c32ccab7 100644
+--- a/src/d8/d8.h
++++ b/src/d8/d8.h
+@@ -683,6 +683,7 @@ class Shell : public i::AllStatic {
+ 
+ #ifdef V8_FUZZILLI
+   static void Fuzzilli(const v8::FunctionCallbackInfo<v8::Value>& args);
++  static void FuzzilliHash(const v8::FunctionCallbackInfo<v8::Value>& args);
+ #endif  // V8_FUZZILLI
+ 
+   // Data is of type DynamicImportData*. We use void* here to be able
+diff --git a/src/heap/factory.cc b/src/heap/factory.cc
+index bcb2f6475ec..2c72876ad69 100644
+--- a/src/heap/factory.cc
++++ b/src/heap/factory.cc
+@@ -1293,6 +1293,7 @@ Handle<NativeContext> Factory::NewNativeContext() {
+   context.set_serialized_objects(*empty_fixed_array());
+   context.init_microtask_queue(isolate(), nullptr);
+   context.set_retained_maps(*empty_weak_array_list());
++  context.set_fuzzilli_hash(Smi::zero());
+   return handle(context, isolate());
+ }
+ 
+diff --git a/src/init/bootstrapper.cc b/src/init/bootstrapper.cc
+index fc7b17d582e..6319901e21d 100644
+--- a/src/init/bootstrapper.cc
++++ b/src/init/bootstrapper.cc
+@@ -5738,6 +5738,10 @@ bool Genesis::InstallABunchOfRandomThings() {
+   InstallFunctionWithBuiltinId(isolate(), global_object, "unescape",
+                                Builtin::kGlobalUnescape, 1, false);
+ 
++  // Install Global.fuzzilli_hash.
++  InstallFunctionWithBuiltinId(isolate(), global_object, "fuzzilli_hash",
++                               Builtin::kFuzzilliHash, 1, true);
++
+   // Install Global.eval.
+   {
+     Handle<JSFunction> eval = SimpleInstallFunction(
+diff --git a/src/objects/contexts.h b/src/objects/contexts.h
+index 7e1e715038f..d9cfff6e672 100644
+--- a/src/objects/contexts.h
++++ b/src/objects/contexts.h
+@@ -375,7 +375,8 @@ enum ContextLookupFlags {
+   V(WEAKMAP_DELETE_INDEX, JSFunction, weakmap_delete)                          \
+   V(WEAKSET_ADD_INDEX, JSFunction, weakset_add)                                \
+   V(WRAPPED_FUNCTION_MAP_INDEX, Map, wrapped_function_map)                     \
+-  V(RETAINED_MAPS, Object, retained_maps)
++  V(RETAINED_MAPS, Object, retained_maps)                                      \
++  V(FUZZILLI_HASH_INDEX, Smi, fuzzilli_hash)
+ 
+ #include "torque-generated/src/objects/contexts-tq.inc"
+ 
+diff --git a/src/objects/contexts.tq b/src/objects/contexts.tq
+index d36c4c2c682..3cdf8769404 100644
+--- a/src/objects/contexts.tq
++++ b/src/objects/contexts.tq
+@@ -159,6 +159,7 @@ extern enum ContextSlot extends intptr constexpr 'Context::Field' {
+   BOUND_FUNCTION_WITHOUT_CONSTRUCTOR_MAP_INDEX: Slot<NativeContext, Map>,
+ 
+   WRAPPED_FUNCTION_MAP_INDEX: Slot<NativeContext, Map>,
++  FUZZILLI_HASH_INDEX: Slot<NativeContext, Smi>,
+ 
+   MIN_CONTEXT_SLOTS,
+   ...
+-- 
+2.34.1
+
