@@ -1,3 +1,22 @@
+# JIT-Picking: Differential Fuzzing of JavaScript Engines
+<a href="https://publications.cispa.saarland/3773/1/2022-CCS-JIT-Fuzzing.pdf"> <img align="right" width="200"  src="paper.png"> </a>
+
+
+JIT-Picker is a differential fuzzer capable of detecting subtle miscomputations in the JS JIT compilers of browsers. This artifact accompanies our [paper published at ACM CCS 2022](https://dl.acm.org/doi/10.1145/3548606.3560624). To cite our work:
+
+```
+@inproceedings{bernhard2022jitpicker,
+  title={JIT-Picking: Differential Fuzzing of JavaScript Engines},
+  author={Bernhard, Lukas and Scharnowski, Tobias and Schloegel, Moritz and Blazytko, Tim and Holz, Thorsten},
+  booktitle={ACM Conference on Computer and Communications Security (CCS)},
+  year={2022}
+}
+```
+
+JIT-Picker is research code provided *as-is*. It is based on [Fuzzilli](https://github.com/googleprojectzero/fuzzilli), for which you can find the original README.md in the following.
+
+---
+
 # Fuzzilli
 
 A (coverage-)guided fuzzer for dynamic language interpreters based on a custom intermediate language ("FuzzIL") which can be mutated and translated to JavaScript.
