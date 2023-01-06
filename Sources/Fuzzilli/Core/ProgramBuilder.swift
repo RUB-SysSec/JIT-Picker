@@ -1657,7 +1657,7 @@ public class ProgramBuilder {
             probesWeaved += 1
         }
         guard Double(probesWeaved) < fuzzer.config.differentialWeaveRate * Double(code.count) else { return }
-        if probability(fuzzer.config.differentialWeaveRate) {
+        if probability(fuzzer.config.differentialWeaveRate) && hasVisibleVariables {
             //guard scopeAnalyzer.visibleVariables.count > 0 else { return }
             code.append(Instruction(DifferentialHash(allowInnerScope: true), inouts: [randVar()]))
             probesWeaved += 1
